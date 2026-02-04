@@ -92,7 +92,7 @@ def calcGFdabase(N_src=None,i_cmt_file=None,GF_DIR=None):
         shutil.copy('i_master_bk','i_master')
         tmp_cmtfile = i_cmt_file + "_%02d" % (i)
         GF_tmp = GF_DIR + "_%02d" % (i)
-        cmd_cmt = "sed -i \'\'  \'s/%s/%s/\' i_master" %(i_cmt_file,tmp_cmtfile)
+        cmd_cmt = "sed -i \'\'  \'s|%s|%s|\' i_master" %(i_cmt_file,tmp_cmtfile)
         os.system(cmd_cmt + ' > GFs.out')
         cmd = 'prep_kernels inv_sac_file_lst l -gfdir %s' %GF_tmp
         os.system(cmd + ' > GFs.out')
