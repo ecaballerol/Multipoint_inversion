@@ -3,21 +3,22 @@ import numpy as np
 
 # CMT Model parameters
 time_shift = 9.0 # Centroid time-shift
-i_cmt_file = 'Puy_CMTSOLUTION'
+# i_cmt_file = 'Puy_CMTSOLUTION'
+i_cmt_file = 'GCMTinfo/Kaikoura_CMTSOLUTION'
 o_cmt_file = 'o_CMTSOLUTION'
 
 # Green's function directory (Green's functions are here filtered and convolved with an STF)
-calc_GFs = False
+calc_GFs = True
 N_src = 2
 GF_DIR = 'GFs'
 GF_M0  = 1.0e28 # Scalar moment used to compute Green's functions
 
 # Data parameters (waveforms are here filtered in the same passband as Green's functions
-i_sac_lst = 'i_sac_lst.txt'
+i_sac_lst = 'inv_sac_file_lst'
 wpwin = True # if True, time-window from P-travel time to P-travel time + swwin*Delta 
-swwin = 40.  # where Delta is the epicentral distance in degrees (gcarc in data sac headers)
+swwin = [0, 60, 1, 2]  # where Delta is the epicentral distance in degrees (gcarc in data sac headers)
              # P-travel time should be defined as t0 in data sac headers
-
+# swwin = None
 # Time-windows different from the default (set above)
 dcwin = {'CU_TGUH_00_BHZ': [0.,310.], 'II_JTS_00_BHZ':  [0.,600.], 'MX_ZAIG_--_BHZ': [0.,240.],
          'MX_ZAIG_--_BHN': [0.,240.], 'MX_ZAIG_--_BHE': [0.,240.], 'IU_TUC_00_BHN':  [0.,500.],
@@ -36,10 +37,10 @@ std = 0.05 # noise
 exp_cor_len = 30.
 
 # Starting solution
-Times   = [5.5,10.8]
-Strikes = [242.,247.]
+Times   = [3,5]
+Strikes = [242.,180.]
 Dips    = [ 49., 53.]
-Rakes   = [177.,131.]
+Rakes   = [130.,131.]
 iModel  = np.append(np.append(np.append(Times,Strikes),Dips),Rakes)
 M0s     = np.array([6.92E+26,1.44E+27])
 
