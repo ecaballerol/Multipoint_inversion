@@ -13,6 +13,7 @@ import h5py
 from glob import glob
 from scipy import signal
 import shutil
+import pickle
 
 #Personals
 import sacpy
@@ -167,7 +168,8 @@ class multicmt(object):
         # All done
         return pred, M0s
 
-    def buildCdfromRes(self,exp_cor_len,PriorTime,PriorStrikes,PriorDips,PriorRakes,npts,relative_error=0.2):
+    def buildCdfromRes(self,exp_cor_len,npts,PriorTime=None,PriorStrikes=None,\
+                       PriorDips=None,PriorRakes=None,relative_error=0.2):
         '''
         Calculate a Cd from an initial solution
         Args:
@@ -178,7 +180,12 @@ class multicmt(object):
             Rakes
             npts
         '''
-
+        if PriorTime is None:
+            PriorTime   = self.iniTimes
+            PriorStrikes = self.iniStrikes
+            PriorDips = self.iniDips
+            PriorRakes = self.iniRakes
+            
         # Calculate residuals for the initial model
         pred, M0s = self.synth(PriorTime,PriorStrikes,PriorDips,PriorRakes,self.cmtp.D,npts)
 
@@ -332,8 +339,87 @@ class multicmt(object):
         del G,pred,res  
 
         return logLLK
+    
+    def DefineInitMod(self,Times=None,Strikes=None,Dips=None,\
+                      Rakes=None,M0s=None,priorDict=None):
+        '''
+        Function to definite initial model for the sampler
+        Args:
+            Times: Description
+            Strikes: Description
+            Dips: Description
+            Rakes: Description
+            M0s: Description
+            priorDict: Description
+        '''
+        
+        if priorDict is not None:
+            Times = []
+            Strikes = []
+            Dips = []
+            Rakes = []
+            with open(priorDict, 'rb') as file:
+                data = pickle.load(file)
+                for i in range(self.N_src):
+                    tmp_cmtfile = i_cmt_file + "_%02d" % (i)
+                    cmttmp = cmt.cmt()
+                    cmttmp.read(tmp_cmtfile)
+                    FaultName = cmttmp.pdeline.strip().split(',')[0].split(' ')[-1]
+                    print(FaultName)
+                    Times.append(np.mean(data[FaultName]['time']))
+                    Strikes.append(data[FaultName]['sd'][0])
+                    Dips.append(data[FaultName]['sd'][1])
+                    Rakes.append(np.mean(data[FaultName]['rake']))
+                   
+        else:
+            assert all(x is not None for x in \
+            [Times, Strikes, Dips, Rakes]), \
+            "Initial Model not completedly defined, check input"
 
-    def MultiSrcInv(self,n_samples,init_Model,prior_bounds,prop_cov,npts,WriRes=True):
+        self.iniTimes   = Times
+        self.iniStrikes = Strikes
+        self.iniDips    = Dips
+        self.iniRakes   = Rakes
+        self.iniM0s     = M0s
+
+        return
+
+
+    def DefinePrior(self,i_cmt_file,prior_bounds=None,priorDict=None):
+        '''
+        Function to define priori bounds from array or Dictionary
+        Args:
+            prior_bounds: List of bounds for each parameter
+            Dictionary: Map of parameters index (optional, default self.map)
+            
+        '''
+
+        # assert prior_bounds is not None and priorDict is not None, 'prior_bounds or Dictionary not defined'
+        assert any(x is not None for x in [prior_bounds, priorDict]), "prior_bounds and/or Dictionary not defined"
+
+        self.prior_bounds = []
+        if prior_bounds is not None:
+            self.prior_bounds = prior_bounds
+
+        elif priorDict is not None:
+            prior_bounds  = []
+            Param = ['time', 'strike', 'dip', 'rake']
+            with open('apriori_dict.pkl', 'rb') as file:
+                data = pickle.load(file)
+                for iParam in Param:
+                    for i in np.arange(self.N_src):
+                        tmp_cmtfile = i_cmt_file + "_%02d" % (i)
+                        cmttmp = cmt.cmt()
+                        cmttmp.read(tmp_cmtfile)
+                        FaultName = cmttmp.pdeline.strip().split(',')[0].split(' ')[-1]
+                        print(FaultName)
+                        # priortmp.append(data[FaultName][iParam])
+                        prior_bounds.append(data[FaultName][iParam])
+            self.prior_bounds = np.array(prior_bounds)
+            
+        return
+
+    def MultiSrcInv(self,n_samples,prop_cov,npts,init_Model=None,WriRes=True):
         '''
         Function to inverse multi point sources
         Args:
@@ -344,10 +430,17 @@ class multicmt(object):
         assert self.bigD is not None, 'Data not defined, buildG first'
         assert self.bigG is not None, 'big G not defined, build G first'
         assert self.map is not None, 'Map of parameters not defined, defined first'
+        assert self.prior_bounds is not None, 'Prior bounds not defined, defined first'
 
         data_dict = {'data':self.bigD, 'green': self.bigG, 'sigma':1.}
         data_dict.update(self.map)
         data_dict['npts']= npts
+        prior_bounds = self.prior_bounds
+
+        if init_Model is None:
+            init_Model = np.append(np.append(\
+            np.append(self.iniTimes,self.iniStrikes),\
+                self.iniDips),self.iniRakes)
 
         #Sample the slip distribution
         print('Metropolis')
@@ -371,7 +464,9 @@ class multicmt(object):
     
     def ReadResults(self,hfile='results.h5'):
         '''
-        
+        Read results from h5 file
+        Args:
+            hfile: h5 file name (default 'results.h5')
         '''
         h5f=h5py.File(hfile,'r')
 
