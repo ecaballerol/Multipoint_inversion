@@ -17,6 +17,7 @@ from multi_cmt import *
 
 # Prepare data (data is should already be filtered)
 cmtp = cmt.cmtproblem()
+# cmtp.preparedata(i_sac_lst)
 cmtp.preparedata(i_sac_lst,wpwin=wpwin,swwin=swwin)
 cmtp.buildD()
 npts = []
@@ -46,12 +47,17 @@ for i in range(N_src):
 # Compute Greens
 multi = multicmt(N_src,cmtp)
 options = {'derivate':True}
-multi.prepare_src_kernels(GF_names,**options)
-# multi.prepare_src_kernels(GF_names)
+# multi.prepare_src_kernels(GF_names,**options)
+multi.prepare_src_kernels(GF_names)
 multi.SetParamap()
 
-multi.buildCdfromRes(exp_cor_len,Times,Strikes,Dips,Rakes,npts,)
+multi.DefinePrior(i_cmt_file,prior_bounds=None,priorDict='apriori_dict.pkl')
+multi.DefineInitMod(M0s=M0s,priorDict='apriori_dict.pkl')
+
+multi.buildCdfromRes(exp_cor_len,npts)
 multi.buildG(npts)
+
+#Samples,LLK,accepted = multi.MultiSrcInv(5000,prop_cov,npts)
 
 
 # cmtp.cmt.rcmtfile(i_cmt_file)
