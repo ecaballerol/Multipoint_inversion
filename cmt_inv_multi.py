@@ -44,15 +44,23 @@ for i in range(N_src):
             dir_name = os.path.join(GF_DIR +"_%02d" % (i),'gf_%s'%(MTnm))
             GF_names[-1][dkey][MTnm] = os.path.join(dir_name,sac_file)
 
+active_src = []
+active_src.append(0)
+active_src.append(1)
+active_src.append(2)
+prop_cov  = (2.38*2.38/float(len(active_src*4))) * np.eye(len(active_src*4),len(active_src*4))
+
+# active_src.append(1)
 # Compute Greens
-multi = multicmt(N_src,cmtp)
+multi = multicmt(active_src,cmtp)
 options = {'derivate':True}
 # multi.prepare_src_kernels(GF_names,**options)
 multi.prepare_src_kernels(GF_names)
 multi.SetParamap()
 
 multi.DefinePrior(i_cmt_file,prior_bounds=None,priorDict='apriori_dict.pkl')
-multi.DefineInitMod(M0s=M0s,priorDict='apriori_dict.pkl')
+multi.DefineInitMod(i_cmt_file,M0s=M0s[:len(active_src)],priorDict='apriori_dict.pkl')
+
 
 multi.buildCdfromRes(exp_cor_len,npts)
 multi.buildG(npts)
