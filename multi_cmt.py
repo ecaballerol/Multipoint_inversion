@@ -504,22 +504,25 @@ class multicmt(object):
         else:
             BIC = M*np.log(N) - 2*llk # !! BIC = -2*p(D) of Bishop, 2006)
             return BIC
+        
+    def calcMean(self,Samples,n_burn=200):
+        '''
+        Compute mean model from samples
+        Args:
+            Samples: MCMC samples
+            n_burn: Number of burn-in samples to discard (default 200)
+        '''
+        meanModel ={}
+        for iparm in self.map:
+            meanModel[iparm] = Samples[n_burn:,self.map[iparm]].mean(axis=0)
+
+        mTimes = meanModel['iT']
+        mStrikes = meanModel['iS']
+        mDips = meanModel['iD']
+        mRakes = meanModel['iR']
+        return mTimes, mStrikes, mDips, mRakes
 
 
-# # Write outputs
-
-# Times    = Samples[n_burn:,iT]
-# Strikes  = Samples[n_burn:,iS]
-# Dips     = Samples[n_burn:,iD]
-# Rakes    = Samples[n_burn:,iR]
-# mTimes   = Times.mean(axis=0)
-# mStrikes = Strikes.mean(axis=0)
-# mDips    = Dips.mean(axis=0)
-# mRakes   = Rakes.mean(axis=0)
-
-# predI,M0s= synt(mTimes,mStrikes,mDips,mRakes,G,Data,npts,M0s=None)
-
-# predM,J  = synt(mTimes,mStrikes,mDips,mRakes,Green,dobs,npts,M0s=M0s)
 
 # for n in range(nsrc):
 
