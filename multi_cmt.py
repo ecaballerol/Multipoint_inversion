@@ -105,21 +105,21 @@ class multicmt(object):
     '''
     Classes implementing multi-point functions
     Args:
-        N_src: Number of different sources
+        active_src: List of active source indices
         cmtp: CMT object with data defined
 
     '''
 
-    def __init__(self,N_src=None,cmtp=None):
+    def __init__(self,active_src=None,cmtp=None):
 
         self.cmtp = cmtp
-        self.N_src = N_src
-
-        self.Green = []
+        self.active_src = active_src
+        
         self.Cd = None
         self.iCd = None
         self.bigD = None
         self.bigG = None
+        self.map = None
 
         return
 
@@ -131,8 +131,10 @@ class multicmt(object):
             GF_names: List of GF database  
         '''
         assert type(GF_names) is list, "GF_names is not a list"
-        
-        for i in range(self.N_src):
+
+        self.Green = []
+
+        for i in self.active_src:
             cmtevent = self.cmtp.copy()
             cmtevent.preparekernels(GF_names[i],**kwargs)
             cmtevent.buildG()
@@ -148,8 +150,8 @@ class multicmt(object):
         Gi0 = np.around(times,decimals=0).astype('int')
         
         # Compute synthetics for unitary moment tensors
-        G = np.zeros((data.size,self.N_src),dtype='float64')
-        for n in range(self.N_src):
+        G = np.zeros((data.size,len(self.active_src)),dtype='float64')
+        for n in range(len(self.active_src)):
             # Moment Tensor
             MT = sdr2MT(strikes[n],dips[n],rakes[n],M0=1.)
             # Green's functions
@@ -239,7 +241,7 @@ class multicmt(object):
         dobs = self.cmtp.D
 
         G    = []
-        for i in range(self.N_src):
+        for i in range(len(self.active_src)):
             G.append(np.zeros(self.Green[i].shape))
 
         i0 = 0
@@ -251,11 +253,13 @@ class multicmt(object):
             else:
                 Data[i0:i0+npts[i]] = dobs[i0:i0+npts[i]]
 
-            for n in range(self.N_src):
+            for n in range(len(self.active_src)):
                 if preweight:
                     G[n][i0:i0+npts[i],:] = L.T.dot(self.Green[n][i0:i0+npts[i],:])
                 else:
                     G[n][i0:i0+npts[i],:] = self.Green[n][i0:i0+npts[i],:]
+
+            i0 += npts[i]
 
         self.bigD = Data
         self.bigG = G
@@ -263,12 +267,12 @@ class multicmt(object):
 
     def SetParamap(self):
         '''
-        Function to map the parameters index
+        Function to map the parameters index of the active sources
         '''
-        iT = np.arange(self.N_src)
-        iS = np.arange(self.N_src) + self.N_src
-        iD = np.arange(self.N_src) + self.N_src * 2
-        iR = np.arange(self.N_src) + self.N_src * 3
+        iT = np.arange(len(self.active_src))
+        iS = np.arange(len(self.active_src)) + len(self.active_src)
+        iD = np.arange(len(self.active_src)) + len(self.active_src) * 2
+        iR = np.arange(len(self.active_src)) + len(self.active_src) * 3
 
         self.map={'iT': iT, 'iS':iS,
         'iD':iD, 'iR':iR
@@ -306,9 +310,9 @@ class multicmt(object):
 
         # Compute synthetics for unitary moment tensors
 
-        G = np.zeros((Data.size,self.N_src),dtype='float64')
+        G = np.zeros((Data.size,len(self.active_src)),dtype='float64')
 
-        for n in range(self.N_src):
+        for n in range(len(self.active_src)):
 
             # Moment Tensor
             MT = sdr2MT(Strikes[n],Dips[n],Rakes[n],M0=1.)
@@ -340,7 +344,7 @@ class multicmt(object):
 
         return logLLK
     
-    def DefineInitMod(self,Times=None,Strikes=None,Dips=None,\
+    def DefineInitMod(self,i_cmt_file,Times=None,Strikes=None,Dips=None,\
                       Rakes=None,M0s=None,priorDict=None):
         '''
         Function to definite initial model for the sampler
@@ -360,7 +364,7 @@ class multicmt(object):
             Rakes = []
             with open(priorDict, 'rb') as file:
                 data = pickle.load(file)
-                for i in range(self.N_src):
+                for i in self.active_src:
                     tmp_cmtfile = i_cmt_file + "_%02d" % (i)
                     cmttmp = cmt.cmt()
                     cmttmp.read(tmp_cmtfile)
@@ -389,6 +393,7 @@ class multicmt(object):
         '''
         Function to define priori bounds from array or Dictionary
         Args:
+            i_cmt_file: CMT file name (used if priorDict is used to get the priori associaited to each fault)
             prior_bounds: List of bounds for each parameter
             Dictionary: Map of parameters index (optional, default self.map)
             
@@ -404,15 +409,14 @@ class multicmt(object):
         elif priorDict is not None:
             prior_bounds  = []
             Param = ['time', 'strike', 'dip', 'rake']
-            with open('apriori_dict.pkl', 'rb') as file:
+            with open(priorDict, 'rb') as file:
                 data = pickle.load(file)
                 for iParam in Param:
-                    for i in np.arange(self.N_src):
+                    for i in self.active_src:
                         tmp_cmtfile = i_cmt_file + "_%02d" % (i)
                         cmttmp = cmt.cmt()
                         cmttmp.read(tmp_cmtfile)
                         FaultName = cmttmp.pdeline.strip().split(',')[0].split(' ')[-1]
-                        print(FaultName)
                         # priortmp.append(data[FaultName][iParam])
                         prior_bounds.append(data[FaultName][iParam])
             self.prior_bounds = np.array(prior_bounds)
@@ -476,6 +480,30 @@ class multicmt(object):
         h5f.close()
 
         return Samples, LLK, accepted
+    
+    def getBIC(self,act_sources,llk=None,theta=None,npts=None,AIC=False):
+        '''
+        Compute BIC Bayesian Information Criterion
+        Args:
+            llk: Log-likelihood of the model
+            act_sources: number of point sources
+            theta: model parameters (optional, only if llk is not provided)
+        '''
+        if llk is None:
+            assert theta is not None, 'theta should be provided if llk is not provided'
+            data_dict = {'data':self.bigD, 'green': self.bigG, 'sigma':1.}
+            data_dict.update(self.map)
+            data_dict['npts']= npts
+            llk = self.calcLLK(theta,data_dict)
+
+        N = self.cmtp.D.shape #N number of data
+        M = act_sources * 4 # Number of parameters (time, strike, dip, rake for each source)
+        if AIC:
+            AIC = 2*M - 2*llk # !! BIC = -p(D) of Bishop, 2006)
+            return AIC
+        else:
+            BIC = M*np.log(N) - 2*llk # !! BIC = -2*p(D) of Bishop, 2006)
+            return BIC
 
 
 # # Write outputs
