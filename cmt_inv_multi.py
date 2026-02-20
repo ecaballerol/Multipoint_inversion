@@ -48,9 +48,11 @@ for i in range(N_src):
 
 active_src = []
 active_src.append(0)
-active_src.append(1)
+# active_src.append(1)
 active_src.append(2)
-active_src.append(3)
+# active_src.append(3)
+# for i in np.arange(N_src):
+    # active_src.append(i)
 
 prop_cov  = (2.38*2.38/float(len(active_src*4))) * np.eye(len(active_src*4),len(active_src*4))
 
@@ -70,8 +72,10 @@ multi.DefineInitMod(i_cmt_file,M0s=M0s[:len(active_src)],priorDict='apriori_dict
 multi.buildCdfromRes(exp_cor_len,npts)
 multi.buildG(npts)
 
-#Samples,LLK,accepted = multi.MultiSrcInv(5000,prop_cov,npts)
+Samples,LLK,accepted = multi.MultiSrcInv(5000,prop_cov,npts)
 
+BICtmp =multi.getBIC(len(active_src),llk=LLK[-1])
+print('BIC:' + str(BICtmp))
 # mTimes,mStrikes,mDips,mRakes = multi.calcMean(Samples,n_burn=n_burn)
 # predI , Mpost = multi.synth( mTimes,mStrikes,mDips,mRakes,multi.cmtp.D,npts)
 #  predpost , Mj = multi.synth( mTimes,mStrikes,mDips,mRakes,multi.cmtp.D,npts,Mpost)
