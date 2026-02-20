@@ -9,9 +9,9 @@ o_cmt_file = 'o_CMTSOLUTION'
 
 # Green's function directory (Green's functions are here filtered and convolved with an STF)
 calc_GFs = True
-N_src = 2
+N_src = 5
 GF_DIR = 'GFs'
-GF_M0  = 1.0e28 # Scalar moment used to compute Green's functions
+GF_M0  = 1.0e-28 # Scalar moment used to compute Green's functions
 
 # Data parameters (waveforms are here filtered in the same passband as Green's functions
 i_sac_lst = 'inv_sac_file_lst'
@@ -42,13 +42,16 @@ Strikes = [242.,180.]
 Dips    = [ 49., 53.]
 Rakes   = [130.,131.]
 iModel  = np.append(np.append(np.append(Times,Strikes),Dips),Rakes)
-M0s     = np.array([6.92E+26,1.44E+27])
+M0s     = np.array([6.92E+26,1.44E+27,1.44E+27,1.44E+27])
 
 
 # Sampler parameters
-n_samples = 2500 # Nb of draws
-n_burn    = 200
+n_samples = 3500 # Nb of draws
+n_burn    = 1500
 
+#Filtering parameters
+BP    = [0.05,0.12] #v1 data
+ORDER = 4
 
 # Define priors4
 prior_bounds  = []
@@ -67,5 +70,5 @@ prior_bounds = np.array(prior_bounds)
 
 # Define proposal PDF
 # prop_cov  = (2.38*2.38/float(len(iModel))) * np.fromfile('C35.bin').reshape(len(iModel),len(iModel))
-prop_cov  = (2.38*2.38/float(len(iModel))) * np.eye(len(iModel),len(iModel))
+
 
