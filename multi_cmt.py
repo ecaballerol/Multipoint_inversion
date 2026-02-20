@@ -521,20 +521,30 @@ class multicmt(object):
         mDips = meanModel['iD']
         mRakes = meanModel['iR']
         return mTimes, mStrikes, mDips, mRakes
+    
+    def writeCMTOutput(self,mTimes,mStrikes,mDips,mRakes,M0s,i_cmt_file):
+        '''
+        Write CMTSOLUTION file for each source
+        Args:
+            mTimes: Mean times of the sources
+            mStrikes: Mean strikes of the sources
+            mDips: Mean dips of the sources
+            mRakes: Mean rakes of the sources
+            M0s: Seismic moments of the sources
+            i_cmt_file: Input CMT file name (used to get the source locations)
+            o_cmt_file: Output CMT file name (will be written as o_cmt_file.%d for each source)
+        '''
+        for i in range(len(self.active_src)):
 
+            tmp_cmtfile = i_cmt_file + "_%02d" % (i)        
+            c=cmt.cmt(filename=tmp_cmtfile)
+            c.ts=mTimes[i]
+            
+            c.sdr2MT(mStrikes[i],mDips[i],mRakes[i],M0s[i])
 
-
-# for n in range(nsrc):
-
-#     c=cmt.cmt(filename='CMTSOLUTION.%d'%(n+1))
-
-#     c.ts=mTimes[n]
-
-#     c.dep = depths[n]
-
-#     c.sdr2MT(mStrikes[n],mDips[n],mRakes[n],M0s[n]*1.0e28)
-
-#     c.wcmtfile('o_M_CMTSOLUTION.%d'%(n+1))
+            c.wcmtfile('o_M_CMTSOLUTION.%d'%(i+1))
+        
+        return
 
 # plt.plot(dobs)    
 
