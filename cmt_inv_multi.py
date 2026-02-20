@@ -18,7 +18,8 @@ from multi_cmt import *
 # Prepare data (data is should already be filtered)
 cmtp = cmt.cmtproblem()
 # cmtp.preparedata(i_sac_lst)
-cmtp.preparedata(i_sac_lst,wpwin=wpwin,swwin=swwin)
+cmtp.preparedata(i_sac_lst)
+# cmtp.preparedata(i_sac_lst,wpwin=wpwin,swwin=swwin)
 cmtp.buildD()
 npts = []
 for chan_id in cmtp.chan_ids:
@@ -38,7 +39,8 @@ for i in range(N_src):
     for dkey in cmtp.data:
         GF_names[-1][dkey] = {}
         data = cmtp.data[dkey]
-        sac_file = '%s.%s.HN%s.--.SAC.sac.bp'%(data.kstnm,data.knetwk,data.kcmpnm[-1])
+        sac_file = '%s.%s.HN%s.--.SAC.sac'%(data.kstnm,data.knetwk,data.kcmpnm[-1])
+        # sac_file = '%s.%s.HN%s.--.SAC.sac'%(data.kstnm,data.knetwk,data.kcmpnm[-1])
         for j in range(6):
             MTnm = cmtp.cmt.MTnm[j]
             dir_name = os.path.join(GF_DIR +"_%02d" % (i),'gf_%s'%(MTnm))
@@ -48,14 +50,17 @@ active_src = []
 active_src.append(0)
 active_src.append(1)
 active_src.append(2)
+active_src.append(3)
+
 prop_cov  = (2.38*2.38/float(len(active_src*4))) * np.eye(len(active_src*4),len(active_src*4))
 
-# active_src.append(1)
 # Compute Greens
 multi = multicmt(active_src,cmtp)
-options = {'derivate':True}
-# multi.prepare_src_kernels(GF_names,**options)
-multi.prepare_src_kernels(GF_names)
+# options = {'derivate':True,'filter_freq':BP}
+options = {'derivate':True,'scale':GF_M0,'filter_freq':BP}
+# options = {'derivate':True,'scale':GF_M0}
+multi.prepare_src_kernels(GF_names,**options)
+# multi.prepare_src_kernels(GF_names)
 multi.SetParamap()
 
 multi.DefinePrior(i_cmt_file,prior_bounds=None,priorDict='apriori_dict.pkl')
@@ -67,6 +72,9 @@ multi.buildG(npts)
 
 #Samples,LLK,accepted = multi.MultiSrcInv(5000,prop_cov,npts)
 
+# mTimes,mStrikes,mDips,mRakes = multi.calcMean(Samples,n_burn=n_burn)
+# predI , Mpost = multi.synth( mTimes,mStrikes,mDips,mRakes,multi.cmtp.D,npts)
+#  predpost , Mj = multi.synth( mTimes,mStrikes,mDips,mRakes,multi.cmtp.D,npts,Mpost)
 
 # cmtp.cmt.rcmtfile(i_cmt_file)
 # cmtp.cmt.ts = time_shift
