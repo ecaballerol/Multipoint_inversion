@@ -171,7 +171,7 @@ class multicmt(object):
         return pred, M0s
 
     def buildCdfromRes(self,exp_cor_len,npts,PriorTime=None,PriorStrikes=None,\
-                       PriorDips=None,PriorRakes=None,relative_error=0.2):
+                       PriorDips=None,PriorRakes=None,relative_error=0.2,saveCd=False):
         '''
         Calculate a Cd from an initial solution
         Args:
@@ -224,7 +224,22 @@ class multicmt(object):
         iCd = np.linalg.inv(Cd)
         self.Cd = Cd
         self.iCd = iCd
-        
+
+        if saveCd:
+            return Cd
+        else: 
+            return
+    
+    def setCd(self,Cd):
+        '''
+        Build Cd from file
+        Args:
+            Cd_file: File name of the Cd (should be in .npy format)
+        '''
+        Cd = Cd
+        iCd = np.linalg.inv(Cd)
+        self.Cd = Cd
+        self.iCd = iCd
         return
 
     def buildG(self,npts,preweight=True):
@@ -245,10 +260,13 @@ class multicmt(object):
             G.append(np.zeros(self.Green[i].shape))
 
         i0 = 0
+        logdetCd_total = 0
         Data = np.zeros(dobs.shape)
         for i in range(len(npts)):
             if preweight:
                 L   = np.linalg.cholesky(iCd[i0:i0+npts[i],i0:i0+npts[i]])
+                logdetCd_total += 2*np.sum(np.log(np.diag(L)))
+                
                 Data[i0:i0+npts[i]] = L.T.dot(dobs[i0:i0+npts[i]])
             else:
                 Data[i0:i0+npts[i]] = dobs[i0:i0+npts[i]]
@@ -260,7 +278,8 @@ class multicmt(object):
                     G[n][i0:i0+npts[i],:] = self.Green[n][i0:i0+npts[i],:]
 
             i0 += npts[i]
-
+            
+        self.logdetCd = logdetCd_total  
         self.bigD = Data
         self.bigG = G
         return
@@ -334,8 +353,10 @@ class multicmt(object):
         res = (G.dot(M0s) - Data)/sig
 
         # Log-Likelihood
-
-        Norm = -(np.log(sig)+0.5*np.log(2*np.pi))*Data.size    
+        if self.logdetCd is not None:
+            Norm = -0.5*self.logdetCd - 0.5*Data.size*np.log(2*np.pi)
+        else:
+            Norm = -(np.log(sig)+0.5*np.log(2*np.pi))*Data.size    
         logLLK = Norm-0.5*(res*res).sum() # log of model likelihood
 
         # All done
@@ -496,7 +517,7 @@ class multicmt(object):
             data_dict['npts']= npts
             llk = self.calcLLK(theta,data_dict)
 
-        N = self.cmtp.D.shape #N number of data
+        N = self.cmtp.D.size #N number of data
         M = act_sources * 4 # Number of parameters (time, strike, dip, rake for each source)
         if AIC:
             AIC = 2*M - 2*llk # !! BIC = -p(D) of Bishop, 2006)
