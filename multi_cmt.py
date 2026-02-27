@@ -121,6 +121,12 @@ class multicmt(object):
         self.bigG = None
         self.map = None
 
+        npts = []
+        for chan_id in self.cmtp.chan_ids:
+            npts.append(self.cmtp.data[chan_id].npts)    
+        npts = np.array(npts)
+        self.npts = npts
+
         return
 
     def prepare_src_kernels(self,GF_names=None, **kwargs):
@@ -170,7 +176,7 @@ class multicmt(object):
         # All done
         return pred, M0s
 
-    def buildCdfromRes(self,exp_cor_len,npts,PriorTime=None,PriorStrikes=None,\
+    def buildCdfromRes(self,exp_cor_len,PriorTime=None,PriorStrikes=None,\
                        PriorDips=None,PriorRakes=None,relative_error=0.2,saveCd=False):
         '''
         Calculate a Cd from an initial solution
@@ -180,14 +186,22 @@ class multicmt(object):
             Strikes
             Dips
             Rakes
-            npts
         '''
         if PriorTime is None:
             PriorTime   = self.iniTimes
             PriorStrikes = self.iniStrikes
             PriorDips = self.iniDips
             PriorRakes = self.iniRakes
-            
+
+        npts = []
+        for chan_id in self.cmtp.chan_ids:
+            npts.append(self.cmtp.data[chan_id].npts)    
+        npts = np.array(npts)
+
+        self.W = {}
+        self.Cd = {}
+        self.log_Cd_det = {}
+
         # Calculate residuals for the initial model
         pred, M0s = self.synth(PriorTime,PriorStrikes,PriorDips,PriorRakes,self.cmtp.D,npts)
 
@@ -204,7 +218,8 @@ class multicmt(object):
         i0 = 0            
         Nc = len(R)    
         Cd = np.zeros((len(self.cmtp.D),len(self.cmtp.D)))
-        for i in range(len(npts)):
+        for i,chan_id in enumerate(self.cmtp.chan_ids):
+        # for i in range(len(npts)):
             sd = np.abs(self.cmtp.D[i0:i0+npts[i]]).max()*relative_error
 
             if sd<sd_all:
@@ -218,31 +233,73 @@ class multicmt(object):
                     dk = k1-k2
                     C[k1,k2] = corE[Nc+dk-1]*sd*sd
             Cd[i0:i0+npts[i],i0:i0+npts[i]] = C.copy()
+
+            iCd = np.linalg.inv(C)
+            L = np.linalg.cholesky(iCd)
+
+            self.W[chan_id] = []
+            self.log_Cd_det[chan_id] = []
+            
+            self.Cd[chan_id] = C.copy()
+            self.W[chan_id].append(L.T)
+            self.log_Cd_det[chan_id]= -2*np.sum(np.log(np.diag(L)))
             i0 += npts[i]
 
-        # Inverse Cd for station and save it
-        iCd = np.linalg.inv(Cd)
-        self.Cd = Cd
-        self.iCd = iCd
-
         if saveCd:
-            return Cd
+            return self.Cd,self.W,self.log_Cd_det
         else: 
             return
-    
-    def setCd(self,Cd):
+        
+    def buildDiagCd(self,std=None,sigma_file=None):
+        """
+        Function to build a diagonal Cd from data noise
+        Args:
+            * std: Standard deviation of the noise (if sigma_file is not provided)
+            *sigma_file: File containing the noise standard deviation for each station (optional, if std is not provided)
+        """
+        print("Building Cd from data noise...")
+        Cd_stat = {}
+        with open(sigma_file, "r") as f:
+            for line in f:
+                parts = line.strip().split()
+                filename = parts[0]
+                values = list(map(float, parts[1:]))
+
+                # ---- Extract station ----
+                fname_parts = filename.split('_')
+                station = fname_parts[2]
+
+                # ---- Extract channel ----
+                last_part = fname_parts[3]
+                channel = last_part.split('.')[2]
+
+                # ---- Build key (same format as cmtp.data) ----
+                key = f"NZ_{station}_--_{channel}"
+
+                Cd_stat[key] = values[0]
+            self.cmtp.buildCd(sigma_d=Cd_stat)
+            self.Cd = self.cmtp.Cd
+            self.W = self.cmtp.W
+            self.log_Cd_det= self.cmtp.log_Cd_det
+
+            
+        return
+        
+
+    def setCd(self,Cd,W,log_Cd_det):
         '''
         Build Cd from file
         Args:
             Cd_file: File name of the Cd (should be in .npy format)
         '''
-        Cd = Cd
-        iCd = np.linalg.inv(Cd)
+        
         self.Cd = Cd
-        self.iCd = iCd
+        self.W = W
+        self.log_Cd_det = log_Cd_det
+        
         return
 
-    def buildG(self,npts,preweight=True):
+    def buildG(self,preweight=True):
         '''
         Preweight the corresponding matrix to
         Args:
@@ -252,34 +309,30 @@ class multicmt(object):
         if preweight:
             assert self.Cd is not None, 'Cd is not defined, predefined'
 
-        iCd = self.iCd
         dobs = self.cmtp.D
-
+        npts = self.npts
         G    = []
         for i in range(len(self.active_src)):
             G.append(np.zeros(self.Green[i].shape))
 
         i0 = 0
-        logdetCd_total = 0
         Data = np.zeros(dobs.shape)
-        for i in range(len(npts)):
+        for i,chan_id in enumerate(self.cmtp.chan_ids):
             if preweight:
-                L   = np.linalg.cholesky(iCd[i0:i0+npts[i],i0:i0+npts[i]])
-                logdetCd_total += 2*np.sum(np.log(np.diag(L)))
+                L   = self.W[chan_id][0]
                 
-                Data[i0:i0+npts[i]] = L.T.dot(dobs[i0:i0+npts[i]])
+                Data[i0:i0+npts[i]] = L.dot(dobs[i0:i0+npts[i]])
             else:
                 Data[i0:i0+npts[i]] = dobs[i0:i0+npts[i]]
 
             for n in range(len(self.active_src)):
                 if preweight:
-                    G[n][i0:i0+npts[i],:] = L.T.dot(self.Green[n][i0:i0+npts[i],:])
+                    G[n][i0:i0+npts[i],:] = L.dot(self.Green[n][i0:i0+npts[i],:])
                 else:
                     G[n][i0:i0+npts[i],:] = self.Green[n][i0:i0+npts[i],:]
 
             i0 += npts[i]
-            
-        self.logdetCd = logdetCd_total  
+
         self.bigD = Data
         self.bigG = G
         return
@@ -353,10 +406,13 @@ class multicmt(object):
         res = (G.dot(M0s) - Data)/sig
 
         # Log-Likelihood
-        if self.logdetCd is not None:
-            Norm = -0.5*self.logdetCd - 0.5*Data.size*np.log(2*np.pi)
+        if self.log_Cd_det is not None:
+            Norm = - 0.5*Data.size*np.log(2*np.pi)
+            for chan_id in self.cmtp.chan_ids:
+                Norm -= 0.5 * self.log_Cd_det[chan_id]
         else:
-            Norm = -(np.log(sig)+0.5*np.log(2*np.pi))*Data.size    
+            Norm = -(np.log(sig)+0.5*np.log(2*np.pi))*Data.size 
+
         logLLK = Norm-0.5*(res*res).sum() # log of model likelihood
 
         # All done
@@ -444,7 +500,7 @@ class multicmt(object):
             
         return
 
-    def MultiSrcInv(self,n_samples,prop_cov,npts,init_Model=None,WriRes=True):
+    def MultiSrcInv(self,n_samples,prop_cov,init_Model=None,WriRes=True):
         '''
         Function to inverse multi point sources
         Args:
@@ -459,7 +515,7 @@ class multicmt(object):
 
         data_dict = {'data':self.bigD, 'green': self.bigG, 'sigma':1.}
         data_dict.update(self.map)
-        data_dict['npts']= npts
+        data_dict['npts']= self.npts
         prior_bounds = self.prior_bounds
 
         if init_Model is None:
