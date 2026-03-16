@@ -9,12 +9,15 @@ o_cmt_file = 'o_CMTSOLUTION'
 
 # Green's function directory (Green's functions are here filtered and convolved with an STF)
 calc_GFs = True
-N_src = 5
+N_src = 21
 GF_DIR = 'GFs'
 GF_M0  = 1.0e-28 # Scalar moment used to compute Green's functions
 
 # Data parameters (waveforms are here filtered in the same passband as Green's functions
 i_sac_lst = 'inv_sac_file_lst'
+Cd_sac_lst = 'o_inv_sac_file_lst' # 
+Cd_from_file = True # If True, build Cd from data noise (using sac files in Cd_sac_lst) instead of using a theoretical correlation length
+
 wpwin = True # if True, time-window from P-travel time to P-travel time + swwin*Delta 
 swwin = [0, 60, 1, 2]  # where Delta is the epicentral distance in degrees (gcarc in data sac headers)
              # P-travel time should be defined as t0 in data sac headers
@@ -34,7 +37,7 @@ o_trace_dir = 'SYNTH_SEM'
 
 #Correlation
 std = 0.05 # noise
-exp_cor_len = 30.
+exp_cor_len = 20.
 
 # Starting solution
 Times   = [3,5]
@@ -42,15 +45,18 @@ Strikes = [242.,180.]
 Dips    = [ 49., 53.]
 Rakes   = [130.,131.]
 iModel  = np.append(np.append(np.append(Times,Strikes),Dips),Rakes)
-M0s     = np.array([6.92E+26,1.44E+27,1.44E+27,1.44E+27])
+M0s     = np.array([6.92E+26,1.44E+27,1.44E+27,\
+                    1.44E+27,1.44E+27,1.44E+27,\
+                    1.44E+27,1.44E+27,1.44E+27])
 
 
 # Sampler parameters
-n_samples = 3500 # Nb of draws
+n_samples = 5500 # Nb of draws
 n_burn    = 1500
 
 #Filtering parameters
-BP    = [0.05,0.12] #v1 data
+# BP    = [0.01,0.0667] #v1 data
+BP    = [0.02,0.08] #v1 data
 ORDER = 4
 
 # Define priors4
